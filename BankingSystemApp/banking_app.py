@@ -1,60 +1,13 @@
 import datetime
-import os
 
-# Utility to get current timestamp
+acc_file = "accounts.txt"
+trans_file = "transactions.txt"
+
+#Timestamp
 def get_timestamp():
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 
-# Automatically add interest if a new month has started
-def auto_add_interest():
-    today = datetime.date.today()
-
-    # If file doesn't exist or is empty or invalid, initialize and add interest
-    if not os.path.exists("last_interest.txt"):
-        with open("last_interest.txt", "w") as f:
-            f.write(str(today))
-        add_interest()
-        return
-
-    with open("last_interest.txt", "r") as f:
-        content = f.read().strip()
-
-    # Handle empty or invalid content
-    try:
-        last_date = datetime.datetime.strptime(content, "%Y-%m-%d").date()
-    except ValueError:
-        last_date = today  # Treat as first run
-        with open("last_interest.txt", "w") as f:
-            f.write(str(today))
-        add_interest()
-        return
-
-    # Add interest if new month
-    if today.month != last_date.month or today.year != last_date.year:
-        add_interest()
-        with open("last_interest.txt", "w") as f:
-            f.write(str(today))
-            
-# Add 1% interest to all accounts
-def add_interest():
-    new_data = []
-    try:
-        with open("accounts.txt", "r") as file:
-            for line in file:
-                acc, name, bal = line.strip().split(",")
-                bal = float(bal)
-                interest = round(bal * 0.01, 2)
-                bal += interest
-                new_data.append(f"{acc},{name},{bal}\n")
-                with open("transactions.txt", "a") as trans_file:
-                    trans_file.write(f"{acc},Interest,{interest},{get_timestamp()}\n")
-    except FileNotFoundError:
-        return
-    with open("accounts.txt", "w") as file:
-        file.writelines(new_data)
-    print("Monthly interest added automatically.")
-
-# Create a new account
+#Create a new account
 def create_account():
     name = input("Enter customer name: ")
     initial_balance = float(input("Enter initial balance (>= 0): "))
@@ -64,19 +17,18 @@ def create_account():
 
     acc_no = get_new_account_number()
 
-    with open("accounts.txt", "a") as acc_file, open("customer.txt", "a") as cust_file:
-        acc_file.write(f"{acc_no},{name},{initial_balance}\n")
-        cust_file.write(f"{acc_no},{name}\n")
+    with open(acc_file, "a") as file:
+        file.write(f"{acc_no},{name},{initial_balance}\n")
 
-    with open("transactions.txt", "a") as trans_file:
-        trans_file.write(f"{acc_no},Deposit,{initial_balance},{get_timestamp()}\n")
+    with open(trans_file, "a") as file:
+        file.write(f"{acc_no},Deposit   ,{initial_balance},{get_timestamp()}\n")
 
     print(f"Account created successfully! Account Number: {acc_no}")
 
 # Generate a unique account number
 def get_new_account_number():
     try:
-        with open("accounts.txt", "r") as file:
+        with open(acc_file, "r") as file:
             lines = file.readlines()
             if not lines:
                 return 1001
@@ -93,28 +45,15 @@ def deposit_money():
     if amount <= 0:
         print("Amount must be positive.")
         return
-    update_balance(acc_no, amount, "Deposit")
-
-# Withdraw money
-def withdraw_money():
-    acc_no = input("Enter account number: ")
-    amount = float(input("Enter amount to withdraw: "))
-    if amount <= 0:
-        print("Amount must be positive.")
-        return
-    update_balance(acc_no, -amount, "Withdrawal")
-
-# Update balance utility
-def update_balance(acc_no, amount, transaction_type):
     updated = False
     new_data = []
     try:
-        with open("accounts.txt", "r") as file:
+        with open(acc_file, "r") as file:
             for line in file:
                 acc, name, bal = line.strip().split(",")
                 if acc == acc_no:
                     bal = float(bal)
-                    if transaction_type == "Withdrawal" and amount < 0 and abs(amount) > bal:
+                    if amount < 0 and amount > bal:
                         print("Insufficient balance.")
                         return
                     bal += amount
@@ -127,11 +66,47 @@ def update_balance(acc_no, amount, transaction_type):
         return
 
     if updated:
-        with open("accounts.txt", "w") as file:
+        with open(acc_file, "w") as file:
             file.writelines(new_data)
-        with open("transactions.txt", "a") as trans_file:
-            trans_file.write(f"{acc_no},{transaction_type},{abs(amount)},{get_timestamp()}\n")
-        print(f"{transaction_type} successful.")
+        with open(trans_file, "a") as t_file:
+            t_file.write(f"{acc_no},Deposit   ,{amount},{get_timestamp()}\n")
+        print("Deposit successful.")
+    else:
+        print("Account not found.")
+
+# Withdraw money
+def withdraw_money():
+    acc_no = input("Enter account number: ")
+    amount = float(input("Enter amount to withdraw: "))
+    if amount <= 0:
+        print("Amount must be positive.")
+        return
+    updated = False
+    new_data = []
+    try:
+        with open(acc_file, "r") as file:
+            for line in file:
+                acc, name, bal = line.strip().split(",")
+                if acc == acc_no:
+                    bal = float(bal)
+                    if amount < 0 and amount > bal:
+                        print("Insufficient balance.")
+                        return
+                    bal -= amount
+                    updated = True
+                    new_data.append(f"{acc},{name},{bal}\n")
+                else:
+                    new_data.append(line)
+    except FileNotFoundError:
+        print("Account file not found.")
+        return
+
+    if updated:
+        with open(acc_file, "w") as file:
+            file.writelines(new_data)
+        with open(trans_file, "a") as t_file:
+            t_file.write(f"{acc_no},Withdrawal,{amount},{get_timestamp()}\n")
+        print("Withdrawal successful.")
     else:
         print("Account not found.")
 
@@ -139,7 +114,7 @@ def update_balance(acc_no, amount, transaction_type):
 def check_balance():
     acc_no = input("Enter account number: ")
     try:
-        with open("accounts.txt", "r") as file:
+        with open(acc_file, "r") as file:
             for line in file:
                 acc, name, bal = line.strip().split(",")
                 if acc == acc_no:
@@ -154,11 +129,14 @@ def view_transactions():
     acc_no = input("Enter account number: ")
     found = False
     try:
-        with open("transactions.txt", "r") as file:
+        print("===================================================")
+        print("     Date & Time      |     Type       |    Amount")
+        print("===================================================")
+        with open(trans_file, "r") as file:
             for line in file:
                 acc, t_type, amount, timestamp = line.strip().split(",")
                 if acc == acc_no:
-                    print(f"{t_type}: {amount} on {timestamp}")
+                    print(f"{timestamp}   |   {t_type}   |    {amount}")
                     found = True
         if not found:
             print("No transactions found.")
@@ -180,7 +158,7 @@ def transfer_money():
     updated = False
     new_data = []
     try:
-        with open("accounts.txt", "r") as file:
+        with open(acc_file, "r") as file:
             for line in file:
                 acc, name, bal = line.strip().split(",")
                 if acc == from_acc:
@@ -201,22 +179,24 @@ def transfer_money():
         return
 
     if updated:
-        with open("accounts.txt", "w") as file:
+        with open(acc_file, "w") as file:
             file.writelines(new_data)
         timestamp = get_timestamp()
-        with open("transactions.txt", "a") as trans_file:
-            trans_file.write(f"{from_acc},TransferOut,{amount},{timestamp}\n")
-            trans_file.write(f"{to_acc},TransferIn,{amount},{timestamp}\n")
+        with open(trans_file, "a") as t_file:
+            t_file.write(f"{from_acc},TransferOut,{amount},{timestamp}\n")
+            t_file.write(f"{to_acc},TransferIn,{amount},{timestamp}\n")
         print("Transfer successful.")
     else:
         print("Sender account not found.")
 
 # Main menu
 def main():
-    auto_add_interest()  # Check and apply monthly interest automatically
 
     while True:
-        print("\n----- Banking System Menu -----")
+        print("")
+        print("===================================================")
+        print("                 Banking System Menu")
+        print("===================================================")
         print("1. Create Account")
         print("2. Deposit Money")
         print("3. Withdraw Money")
@@ -244,5 +224,4 @@ def main():
         else:
             print("Invalid choice. Please try again.")
 
-if __name__ == "__main__":
-    main()
+main()
